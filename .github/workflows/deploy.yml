@@ -9,6 +9,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+      CLOUDFRONT_DISTRIBUTION_ID: ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}
 
     steps:
       - name: Checkout code
@@ -24,25 +27,25 @@ jobs:
       # ── v1: pre-built Vite bundle ────────────────────────────────────
       - name: Sync v1 assets to S3 (long cache, content-hashed)
         run: |
-          aws s3 sync climate-games/v1/assets/ s3://${{ secrets.S3_BUCKET_NAME }}/climate-games/v1/assets/ \
+          aws s3 sync climate-games/v1/assets/ "s3://${S3_BUCKET_NAME}/climate-games/v1/assets/" \
             --delete \
             --cache-control "public, max-age=31536000, immutable"
 
       - name: Upload v1 index.html (no cache)
         run: |
-          aws s3 cp climate-games/v1/index.html s3://${{ secrets.S3_BUCKET_NAME }}/climate-games/v1/index.html \
+          aws s3 cp climate-games/v1/index.html "s3://${S3_BUCKET_NAME}/climate-games/v1/index.html" \
             --cache-control "no-cache, no-store, must-revalidate"
 
       # ── v2: static files, Babel CDN, no build step ───────────────────
       - name: Upload v2 index.html (no cache)
         run: |
-          aws s3 cp climate-games/v2/index.html s3://${{ secrets.S3_BUCKET_NAME }}/climate-games/v2/index.html \
+          aws s3 cp climate-games/v2/index.html "s3://${S3_BUCKET_NAME}/climate-games/v2/index.html" \
             --cache-control "no-cache, no-store, must-revalidate"
 
       - name: Sync v2 JS files to S3 (short cache, versioned via ?v= param)
         run: |
           for f in climate-games/v2/app.jsx climate-games/v2/data.js climate-games/v2/engine.js climate-games/v2/ui.jsx; do
-            aws s3 cp $f s3://${{ secrets.S3_BUCKET_NAME }}/$f \
+            aws s3 cp "$f" "s3://${S3_BUCKET_NAME}/$f" \
               --cache-control "public, max-age=300"
           done
 
@@ -50,7 +53,7 @@ jobs:
       - name: Invalidate CloudFront cache
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --distribution-id "${CLOUDFRONT_DISTRIBUTION_ID}" \
             --paths "/climate-games/v1/*" "/climate-games/v2/*"
 
       - name: Print URLs
